@@ -3,6 +3,50 @@ from selenium.webdriver.common.by import By
 import os
 import time
 import hashlib
+import datetime
+
+
+class Logger:
+    curr_file = ''
+    curr_file_size = 0
+
+    def __init__(self):
+        self.curr_file = self.find_log_files()
+
+    def find_log_files(self):
+        if os.path.isfile(".crawler_logmanager"):
+            f = open(".crawler_logmanager")
+            a = f.readline()
+            b = f.readline()
+            print(a, b)
+            f.close()
+            return a.split(':')[1].split(',')[0]
+        else:
+            f = open(".crawler_logmanager", 'w')
+            f.write("logfile name :log0001, Current Size: 0")
+            f.close()
+            f = open("log0001", 'w')
+            f.write("Datetime, EventType, Source, SavedAt, Size\n")
+            f.close()
+            self.curr_file_size = 0
+            self.curr_file = 'log0001'
+            return 'log0001'
+
+    def save_x(self, x):
+        f = open(self.curr_file, 'a')
+        f.write(x + '\n')
+        f.close()
+        self.curr_file_size += 1
+        # if self.curr_file_size > 500:
+        # make next log file
+        # change the .crawler_logmanager
+        # set curr_file_size to 0
+
+    def close(self):
+        f = open(".crawler_logmanager", w)
+        f.write("logfile name :" + self.curr_file
+                + ', Current Size:' + str(self.curr_file_size))
+        f.close()
 
 
 class Crawler:
@@ -13,6 +57,7 @@ class Crawler:
 
     def __init__(self, target_site: str='instagram'):
         self.driver = webdriver.Firefox()
+        self.logger = Logger()
 
         # different urls for different target sites
         if target_site == 'instagram':
@@ -103,6 +148,7 @@ class Crawler:
         # hash the source to get image file name
         file_hash = hashlib.sha1(img_src.encode()).hexdigest()
         file_name = '{}.png'.format(file_hash)
+        file_path = folder + '/' + file_name
 
         # take screenshot of the image and save
         print('Saving : {}'.format(file_name))  # log progress
@@ -111,6 +157,8 @@ class Crawler:
 
         # switch to main window
         self.driver.switch_to.window(self.main_window)
+        file_size = str(os.path.getsize(file_path))
+        self.write_log('Saved', img_src + ", " + file_path + ', ' + file_size)
 
     def find_next_img(self):
         """
@@ -161,6 +209,10 @@ class Crawler:
         Rest for 2 seconds.
         """
         time.sleep(2)
+
+    def write_log(self, EventType, log):
+        log = str(datetime.datetime.now()) + ', ' + EventType + ", " + log
+        self.logger.save_x(log)
 
     class ImageNotFoundException(Exception):
         """
