@@ -157,4 +157,5 @@ venv.bak/
 # custom
 .idea/
 images/
+*.swp
 
