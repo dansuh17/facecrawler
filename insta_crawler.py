@@ -4,6 +4,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ExpCond
+from crawler_engine_abc import CrawlerEngine
 import os
 import time
 import hashlib
@@ -73,9 +74,9 @@ class BetterDriver(webdriver.Firefox):
             'return document.elementFromPoint({}, {});'.format(x, y))
 
 
-class Crawler:
+class InstagramCrawlerEngine:
     """
-    General-purpose crawler.
+    Crawler engine targeted for crawling instagram photos.
     """
     RIGHT_ARROW_CLASS_NAME = 'coreSpriteRightPaginationArrow'
 
@@ -267,7 +268,9 @@ class Crawler:
 
 
 if __name__ == '__main__':
+    # ensures InstagramCrawlerEngine is a crawler engine
+    assert issubclass(InstagramCrawlerEngine, CrawlerEngine)
     driver = BetterDriver()
-    crawler = Crawler(driver, target_site='instagram')
+    crawler = InstagramCrawlerEngine(driver, target_site='instagram')
     crawler.start()  # begin crawling
     crawler.close()  # probably won't happen...
