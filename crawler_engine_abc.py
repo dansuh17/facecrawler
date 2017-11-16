@@ -21,8 +21,9 @@ class CrawlerEngine(metaclass=ABCMeta):
     @classmethod
     def __subclasshook__(cls, C):
         if cls is CrawlerEngine:
-            if any("download" in B.__dict__ and "start" in B.__dict__
-                    and "close" in B.__dict__ for B in C.__mro__):
+            if any('download' in B.__dict__ and 'start' in B.__dict__
+                    and 'close' in B.__dict__
+                    and '__call__' for B in C.__mro__):
                 return True
         return NotImplemented
 
