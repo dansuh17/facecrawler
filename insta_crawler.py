@@ -3,21 +3,21 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as ExpCond
 from crawler_engine_abc import CrawlerEngine
+from threading import Thread
 import os
 import time
 import hashlib
 
 
 class PhotoImgLoaded(object):
+    """
+    Callable class for finding photo image in instagram post.
+    """
     def __init__(self, location):
         self.location = location
 
     def __call__(self, driver):
-        """
-        Callable class for finding photo image in instagram post.
-        """
         try:
             # select image or video
             x, y = self.location
@@ -80,14 +80,12 @@ class InstagramCrawlerEngine:
     """
     RIGHT_ARROW_CLASS_NAME = 'coreSpriteRightPaginationArrow'
 
-    def __init__(self, webdriver, target_site: str='instagram'):
+    def __init__(self, webdriver, log_queue=None):
         self.driver = webdriver
-
         # different urls for different target sites
-        if target_site == 'instagram':
-            self.base_url = 'http://www.instagram.com/explore/tags/{}'
-
+        self.base_url = 'http://www.instagram.com/explore/tags/{}'
         self.save_folder_name = self.create_image_folder()
+        self.log_queue = log_queue
         self.launch_driver()
         self.main_window = self.init_crawl()
 
@@ -146,9 +144,15 @@ class InstagramCrawlerEngine:
         Args:
             img_src (str): image url
             folder (str): folder name
+
+        Returns:
+            success (bool): whether download succeeded or not
+            file_name (str): saved file name
         """
         # open the image in new tab
         self.driver.execute_script('window.open(\'{}\', \'_blank\');'.format(img_src))
+        file_name = ''
+        success = False
 
         try:
             # Wait for 2 seconds until image is loaded on the new tab
@@ -162,12 +166,14 @@ class InstagramCrawlerEngine:
             # take screenshot of the image and save
             print('Saving : {}'.format(file_name))  # log progress
             larger_img.screenshot(os.path.join(folder, file_name))
+            success = True
         except TimeoutException:
             print('Failed to retrieve downloadable image')
         finally:
             self.driver.close()  # close the tab, not the driver itself
             # switch to main window
             self.driver.switch_to.window(self.main_window)
+        return success, file_name
 
     def find_next_img(self):
         """
@@ -220,26 +226,6 @@ class InstagramCrawlerEngine:
 
         return main_text, comment_text
 
-    def crawl_loop(self):
-        """
-        Infinite loop of crawling.
-        """
-        count = 0  # keep track of crawl count
-        while True:
-            count += 1
-            try:
-                self.go_next_post()
-                image_src = self.find_next_img()
-                print('image found - {}'.format(image_src))
-                self.download(img_src=image_src, folder=self.save_folder_name)
-            except (self.ImageNotFoundException,
-                selenium.common.exceptions.StaleElementReferenceException):
-                # image not found for this step
-                # (it might be video or the link might have been broken)
-                # StaelElementReferenceException occurs when DOM element is modified
-                # just before retrieving image source.
-                continue
-
     def close(self):
         """
         Close and stop crawling.
@@ -252,11 +238,50 @@ class InstagramCrawlerEngine:
         """
         time.sleep(2)
 
-    def start(self):
+    def __call__(self, log_queue=None):
         """
-        Begin crawling.
+        Make the class instance callable.
+
+        Args:
+            log_queue (queue.Queue): thread-safe queue for collecting download status.
         """
-        self.crawl_loop()
+        if log_queue is None and self.log_queue is not None:
+            log_queue = self.log_queue
+        self.start(log_queue)
+
+    def run(self):
+        """
+        Overrides Thread's run() method, which is call upon start() on a separately
+        controllable thread.
+        """
+        self.start(self.log_queue)
+
+    def start(self, log_queue=None):
+        """
+        Infinite loop of crawling.
+
+        Args:
+            log_queue (queue.Queue): thread-safe queue for collecting download status.
+        """
+        count = 0  # keep track of crawl count
+        while True:
+            count += 1
+            try:
+                self.go_next_post()
+                image_src = self.find_next_img()
+                print('image found - {}'.format(image_src))
+                success, filename = self.download(img_src=image_src, folder=self.save_folder_name)
+
+                # log the download event
+                if log_queue is not None:
+                    log_queue.put({'time': time.time(), 'success': success, 'filename': filename})
+            except (self.ImageNotFoundException,
+                selenium.common.exceptions.StaleElementReferenceException):
+                # image not found for this step
+                # (it might be video or the link might have been broken)
+                # StaelElementReferenceException occurs when DOM element is modified
+                # just before retrieving image source.
+                continue
 
 
     class ImageNotFoundException(Exception):
@@ -271,6 +296,6 @@ if __name__ == '__main__':
     # ensures InstagramCrawlerEngine is a crawler engine
     assert issubclass(InstagramCrawlerEngine, CrawlerEngine)
     driver = BetterDriver()
-    crawler = InstagramCrawlerEngine(driver, target_site='instagram')
+    crawler = InstagramCrawlerEngine(driver)
     crawler.start()  # begin crawling
     crawler.close()  # probably won't happen...
