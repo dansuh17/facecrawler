@@ -12,4 +12,4 @@ Firefox web browser
 
 `pip3 install -r requirements.txt`
 
-`python3 selenium_text.py`
+`python3 insta_crawler.py`
