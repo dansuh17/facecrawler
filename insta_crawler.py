@@ -8,6 +8,7 @@ from threading import Thread
 import os
 import time
 import hashlib
+import queue
 
 
 class PhotoImgLoaded(object):
@@ -84,6 +85,10 @@ class InstagramCrawlerEngine:
         self.driver = webdriver
         # different urls for different target sites
         self.base_url = 'http://www.instagram.com/explore/tags/{}'
+        self.hashtag_queue = queue.Queue()
+        self.hashtag_duplicate = []
+        keyword = input("Keyword: ")
+        self.hashtag_queue.put(keyword)
         self.save_folder_name = self.create_image_folder()
         self.log_queue = log_queue
         self.launch_driver()
@@ -99,6 +104,7 @@ class InstagramCrawlerEngine:
         Returns:
             complete url with tag included
         """
+        tag = self.hashtag_queue.get()
         return self.base_url.format(tag)
 
     def launch_driver(self):
@@ -226,6 +232,27 @@ class InstagramCrawlerEngine:
 
         return main_text, comment_text
 
+    def add_hashtag(self):
+        """
+            Add hashtags of the post to queue
+        """
+        img_or_video = self.driver.get_elem_at_point(250, 200)
+        parent_dom = img_or_video.find_elements(By.XPATH, '..')[0]  # go to parent
+        while not parent_dom.tag_name == 'article':
+            parent_dom = parent_dom.find_elements(By.XPATH, '..')[0]
+
+        text_area = parent_dom.find_elements_by_tag_name('ul')[0]
+        children_list_elems = text_area.find_elements_by_tag_name('li')
+        main_post_texts = children_list_elems[0]
+        main_text_elem = main_post_texts.find_elements_by_tag_name('span')
+        for main_span in main_text_elem:
+            main_span_splits = main_span.text.split(" ")
+            for word in main_span_splits:
+                if len(word) > 0 and word[0] == '#' and word[1:] not in self.hashtag_duplicate:
+                    print(word)
+                    self.hashtag_queue.put(word[1:])
+                    self.hashtag_duplicate.append(word[1:])
+
     def close(self):
         """
         Close and stop crawling.
@@ -271,6 +298,7 @@ class InstagramCrawlerEngine:
                 image_src = self.find_next_img()
                 print('image found - {}'.format(image_src))
                 success, filename = self.download(img_src=image_src, folder=self.save_folder_name)
+                self.add_hashtag()
 
                 # log the download event
                 if log_queue is not None:
