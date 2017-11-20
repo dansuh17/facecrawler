@@ -9,6 +9,8 @@ import os
 import time
 import hashlib
 import queue
+import requests
+import base64
 
 
 class PhotoImgLoaded(object):
@@ -90,6 +92,7 @@ class InstagramCrawlerEngine:
         self.hashtag_queue = None
         self.hashtag_duplicate = None
         self.main_window = None
+        self.data_filter = None
 
     def set_tag(self, tag='korea'):
         """
@@ -172,6 +175,12 @@ class InstagramCrawlerEngine:
             # take screenshot of the image and save
             print('Saving : {}'.format(file_name))  # log progress
             larger_img.screenshot(os.path.join(folder, file_name))
+            data_filtered = self.data_filter.detect_object(os.path.join(folder, file_name))
+            if not data_filtered:
+                os.remove(os.path.join(folder, file_name))
+                print("object deleted")
+            else:
+                print("object saved")
             success = True
         except TimeoutException:
             print('Failed to retrieve downloadable image')
@@ -179,7 +188,7 @@ class InstagramCrawlerEngine:
             self.driver.close()  # close the tab, not the driver itself
             # switch to main window
             self.driver.switch_to.window(self.main_window)
-        return success, file_name
+        return data_filtered, success, file_name
 
     def find_next_img(self):
         """
@@ -267,7 +276,7 @@ class InstagramCrawlerEngine:
         """
         time.sleep(2)
 
-    def __call__(self, log_queue=None, hashtag_queue=None, hashtag_duplicate=None):
+    def __call__(self, log_queue=None, hashtag_queue=None, hashtag_duplicate=None, data_filter=None):
         """
         Make the class instance callable.
 
@@ -277,6 +286,7 @@ class InstagramCrawlerEngine:
         self.log_queue = log_queue
         self.hashtag_queue = hashtag_queue
         self.hashtag_duplicate = hashtag_duplicate
+        self.data_filter = data_filter
         self.start()
 
     def run(self):
@@ -303,12 +313,12 @@ class InstagramCrawlerEngine:
                 self.go_next_post()
                 image_src = self.find_next_img()
                 print('image found - {}'.format(image_src))
-                success, filename = self.download(img_src=image_src, folder=self.save_folder_name)
+                data_filtered, success, filename = self.download(img_src=image_src, folder=self.save_folder_name)
                 self.add_hashtag()
 
                 # log the download event
                 if self.log_queue is not None:
-                    self.log_queue.put({'time': time.time(), 'success': success, 'filename': filename})
+                    self.log_queue.put({'data_filtered': data_filtered, 'time': time.time(), 'success': success, 'filename': filename})
             except (self.ImageNotFoundException,
                 selenium.common.exceptions.StaleElementReferenceException):
                 # image not found for this step
@@ -317,13 +327,13 @@ class InstagramCrawlerEngine:
                 # just before retrieving image source.
                 continue
 
-
     class ImageNotFoundException(Exception):
         """
         Exception to note that image has not been found.
         """
         def __init__(self, message):
             self.message = message
+
 
 
 if __name__ == '__main__':
