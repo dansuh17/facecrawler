@@ -85,14 +85,11 @@ class InstagramCrawlerEngine:
         self.driver = webdriver
         # different urls for different target sites
         self.base_url = 'http://www.instagram.com/explore/tags/{}'
-        self.hashtag_queue = queue.Queue()
-        self.hashtag_duplicate = []
-        keyword = input("Keyword: ")
-        self.hashtag_queue.put(keyword)
         self.save_folder_name = self.create_image_folder()
         self.log_queue = log_queue
-        self.launch_driver()
-        self.main_window = self.init_crawl()
+        self.hashtag_queue = None
+        self.hashtag_duplicate = None
+        self.main_window = None
 
     def set_tag(self, tag='korea'):
         """
@@ -122,10 +119,13 @@ class InstagramCrawlerEngine:
         Returns:
             main window (tab) that becomes the base for crawling
         """
-        # select rightmost picture (instagram pictures are organized in three columns)
-        gateway_img_elem = self.driver.get_elem_at_point(850, 300)
-        gateway_img_elem.click()  # click the element
-        self.rest()
+        try:
+            # select rightmost picture (instagram pictures are organized in three columns)
+            gateway_img_elem = self.driver.get_elem_at_point(850, 300)
+            gateway_img_elem.click()  # click the element
+            self.rest()
+        except selenium.common.exceptions.NoSuchElementException:
+            print("no element exception")
         return self.driver.current_window_handle  # return current window (tab)
 
     @staticmethod
@@ -199,8 +199,11 @@ class InstagramCrawlerEngine:
         """
         Proceed to next post of instagram.
         """
-        # find right arrow and click
-        self.driver.find_element_by_class_name(self.RIGHT_ARROW_CLASS_NAME).click()
+        # find right arrow and click. if not found, start again
+        try:
+            self.driver.find_element_by_class_name(self.RIGHT_ARROW_CLASS_NAME).click()
+        except selenium.common.exceptions.NoSuchElementException:
+            self.start()
 
     def find_text(self):
         """
@@ -249,9 +252,8 @@ class InstagramCrawlerEngine:
             main_span_splits = main_span.text.split(" ")
             for word in main_span_splits:
                 if len(word) > 0 and word[0] == '#' and word[1:] not in self.hashtag_duplicate:
-                    print(word)
                     self.hashtag_queue.put(word[1:])
-                    self.hashtag_duplicate.append(word[1:])
+                    self.hashtag_duplicate.add(word[1:])
 
     def close(self):
         """
@@ -265,31 +267,35 @@ class InstagramCrawlerEngine:
         """
         time.sleep(2)
 
-    def __call__(self, log_queue=None):
+    def __call__(self, log_queue=None, hashtag_queue=None, hashtag_duplicate=None):
         """
         Make the class instance callable.
 
         Args:
             log_queue (queue.Queue): thread-safe queue for collecting download status.
         """
-        if log_queue is None and self.log_queue is not None:
-            log_queue = self.log_queue
-        self.start(log_queue)
+        self.log_queue = log_queue
+        self.hashtag_queue = hashtag_queue
+        self.hashtag_duplicate = hashtag_duplicate
+        self.start()
 
     def run(self):
         """
         Overrides Thread's run() method, which is call upon start() on a separately
         controllable thread.
         """
-        self.start(self.log_queue)
+        self.start()
 
-    def start(self, log_queue=None):
+    def start(self):
         """
         Infinite loop of crawling.
 
         Args:
             log_queue (queue.Queue): thread-safe queue for collecting download status.
         """
+        self.launch_driver()
+        self.main_window = self.init_crawl()
+
         count = 0  # keep track of crawl count
         while True:
             count += 1
@@ -301,8 +307,8 @@ class InstagramCrawlerEngine:
                 self.add_hashtag()
 
                 # log the download event
-                if log_queue is not None:
-                    log_queue.put({'time': time.time(), 'success': success, 'filename': filename})
+                if self.log_queue is not None:
+                    self.log_queue.put({'time': time.time(), 'success': success, 'filename': filename})
             except (self.ImageNotFoundException,
                 selenium.common.exceptions.StaleElementReferenceException):
                 # image not found for this step
