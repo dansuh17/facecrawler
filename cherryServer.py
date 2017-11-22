@@ -8,10 +8,7 @@ import json
 pid_list = list()
 
 @cherrypy.expose
-
-
-class StringGeneratorWebService(object):
-
+class StringGeneratorWebService:
     speed = 0.0
     cpu = '0'
 

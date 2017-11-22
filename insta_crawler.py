@@ -4,6 +4,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from crawler_engine_abc import CrawlerEngine
+import threading
 from threading import Thread
 import os
 import time
@@ -77,22 +78,25 @@ class BetterDriver(webdriver.Firefox):
             'return document.elementFromPoint({}, {});'.format(x, y))
 
 
-class InstagramCrawlerEngine:
+class InstagramCrawlerEngine(Thread):
     """
     Crawler engine targeted for crawling instagram photos.
     """
     RIGHT_ARROW_CLASS_NAME = 'coreSpriteRightPaginationArrow'
 
-    def __init__(self, webdriver, log_queue=None):
+    def __init__(self, webdriver, log_queue=None, hashtag_queue=None,
+                 hashtag_duplicate=None, data_filter=None, thread_stopper=None):
+        super().__init__()
         self.driver = webdriver
         # different urls for different target sites
         self.base_url = 'http://www.instagram.com/explore/tags/{}'
         self.save_folder_name = self.create_image_folder()
         self.log_queue = log_queue
-        self.hashtag_queue = None
-        self.hashtag_duplicate = None
+        self.hashtag_queue = hashtag_queue
+        self.hashtag_duplicate = hashtag_duplicate
+        self.data_filter = data_filter
         self.main_window = None
-        self.data_filter = None
+        self.thread_stopper = thread_stopper
 
     def set_tag(self, tag='korea'):
         """
@@ -162,6 +166,7 @@ class InstagramCrawlerEngine:
         self.driver.execute_script('window.open(\'{}\', \'_blank\');'.format(img_src))
         file_name = ''
         success = False
+        data_filtered = False
 
         try:
             # Wait for 2 seconds until image is loaded on the new tab
@@ -212,7 +217,7 @@ class InstagramCrawlerEngine:
         try:
             self.driver.find_element_by_class_name(self.RIGHT_ARROW_CLASS_NAME).click()
         except selenium.common.exceptions.NoSuchElementException:
-            self.start()
+            self.start_crawl()
 
     def find_text(self):
         """
@@ -246,7 +251,7 @@ class InstagramCrawlerEngine:
 
     def add_hashtag(self):
         """
-            Add hashtags of the post to queue
+        Add hashtags of the post to queue.
         """
         img_or_video = self.driver.get_elem_at_point(250, 200)
         parent_dom = img_or_video.find_elements(By.XPATH, '..')[0]  # go to parent
@@ -287,16 +292,16 @@ class InstagramCrawlerEngine:
         self.hashtag_queue = hashtag_queue
         self.hashtag_duplicate = hashtag_duplicate
         self.data_filter = data_filter
-        self.start()
+        self.start_crawl()
 
     def run(self):
         """
-        Overrides Thread's run() method, which is call upon start() on a separately
+        Overrides Thread's run() method, which is called upon start() on a separately
         controllable thread.
         """
-        self.start()
+        self.start_crawl()
 
-    def start(self):
+    def start_crawl(self):
         """
         Infinite loop of crawling.
 
@@ -307,7 +312,7 @@ class InstagramCrawlerEngine:
         self.main_window = self.init_crawl()
 
         count = 0  # keep track of crawl count
-        while True:
+        while not self.thread_stopper.is_set():
             count += 1
             try:
                 self.go_next_post()
@@ -318,7 +323,19 @@ class InstagramCrawlerEngine:
 
                 # log the download event
                 if self.log_queue is not None:
-                    self.log_queue.put({'data_filtered': data_filtered, 'time': time.time(), 'success': success, 'filename': filename})
+                    if success and data_filtered:
+                        log_type = 'FILTERED'
+                    elif success and not data_filtered:
+                        log_type = 'SAVED'  # TODO: actually removed...?
+                    elif not success:
+                        log_type = 'FAILED'
+
+                    log_entry = {
+                        'time': time.time(),
+                        'type': log_type,
+                        'name': filename
+                    }
+                    self.log_queue.put(log_entry)
             except (self.ImageNotFoundException,
                 selenium.common.exceptions.StaleElementReferenceException):
                 # image not found for this step
@@ -326,6 +343,10 @@ class InstagramCrawlerEngine:
                 # StaelElementReferenceException occurs when DOM element is modified
                 # just before retrieving image source.
                 continue
+            except ConnectionRefusedError:
+                print('Driver closed by SIGINT or connection refused from target host.')
+                break
+        print('RETURNING from start_crawl() and closing thread id : {}.'.format(threading.get_ident()))
 
     class ImageNotFoundException(Exception):
         """
@@ -341,5 +362,5 @@ if __name__ == '__main__':
     assert issubclass(InstagramCrawlerEngine, CrawlerEngine)
     driver = BetterDriver()
     crawler = InstagramCrawlerEngine(driver)
-    crawler.start()  # begin crawling
+    crawler.start_crawl()  # begin crawling
     crawler.close()  # probably won't happen...
