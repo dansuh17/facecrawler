@@ -3,6 +3,7 @@ from insta_crawler import InstagramCrawlerEngine, BetterDriver
 from threading import Thread
 import queue
 import time
+import data_filter
 
 
 class Crawler:
@@ -16,6 +17,11 @@ class Crawler:
         self.webdriver_cls = webdriver_cls
         self.log_queue = queue.Queue(maxsize=100)
         self.logger = logger
+
+        image_set = input("Image set(eg. face): ")  # Desired image set (eg. face, cat, dog)
+        self.data_filter = data_filter.Data_Filter(image_set)
+        self.hashtag_queue = queue.Queue()
+        self.hashtag_duplicate = set()
         self.workers = self.create_workers()
         self.logger_thread = Thread(target=self.log, args=(self.log_queue, ), daemon=True)
 
@@ -27,6 +33,10 @@ class Crawler:
         Returns:
             workers (Set[Thread]): set of workers
         """
+        for _ in range(num_workers):
+            keyword = input("keyword: ")
+            self.hashtag_queue.put(keyword)
+            self.hashtag_duplicate.add(keyword)
         workers = set()
         for _ in range(num_workers):
             if issubclass(self.crawler_engine_cls, Thread):
@@ -34,7 +44,8 @@ class Crawler:
             else:
                 workers.add(Thread(
                     target=self.crawler_engine_cls(self.webdriver_cls()),
-                    kwargs={'log_queue': self.log_queue}))
+                    kwargs={'log_queue': self.log_queue, 'hashtag_queue': self.hashtag_queue,
+                            'hashtag_duplicate': self.hashtag_duplicate, 'data_filter': self.data_filter}))
         return workers
 
     def log(self, log_queue: queue.Queue):
