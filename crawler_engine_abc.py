@@ -11,7 +11,7 @@ class CrawlerEngine(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def start(self):
+    def start_crawl(self):
         pass
 
     @abstractmethod
@@ -21,7 +21,7 @@ class CrawlerEngine(metaclass=ABCMeta):
     @classmethod
     def __subclasshook__(cls, C):
         if cls is CrawlerEngine:
-            if any('download' in B.__dict__ and 'start' in B.__dict__
+            if any('download' in B.__dict__ and 'start_crawl' in B.__dict__
                     and 'close' in B.__dict__
                     and '__call__' for B in C.__mro__):
                 return True
