@@ -270,9 +270,8 @@ class InstagramCrawlerEngine(Thread):
             for word in main_span_splits:
                 if (len(word) > 0
                         and word[0] == '#'
-                        and word[1:] not in self.hashtag_duplicate
-                        and not self.hashtag_queue.empty()):
-                    self.hashtag_queue.put(word[0:])
+                        and word[1:] not in self.hashtag_duplicate):
+                    self.hashtag_queue.put(word[1:])
                     self.hashtag_duplicate.add(word[1:])
 
     def close(self):
