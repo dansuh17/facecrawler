@@ -1,28 +1,30 @@
-import requests
-import base64
+import cv2
+import sys
 
 class DataFilter:
     def __init__(self, data_type):
         if data_type == 'face':
             self.detect_object = self.detect_face
-            self._detect_base_url = 'https://api.kairos.com/detect'
+            self.cascPath = "haarcascade_frontalface_default.xml"
 
     def detect_face(self, image_file=None):
         """
         Detects face within the image file.
         """
-        auth_headers = {
-            'app_id': 'da4c5a41',
-            'app_key': '885a7c641219db6baedc3c714aee6257'
-        }
-        try:
-            payload = self._extract_base64_contents(image_file)
-        except FileNotFoundError:
-            return False
-        response = requests.post(self._detect_base_url, json=payload, headers=auth_headers)
-        json_response = response.json()
-        return response.status_code == 200 and 'Errors' not in json_response
+        # Create the haar cascade
+        faceCascade = cv2.CascadeClassifier(self.cascPath)
 
-    def _extract_base64_contents(self, image_path):
-        with open(image_path, 'rb') as fp:
-            return {'image': base64.b64encode(fp.read()).decode('ascii')}
+        # Read the image
+        gray = cv2.imread(image_file, 0)
+
+        # Detect faces in the image
+        faces = faceCascade.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=5,
+            minSize=(30, 30)
+            # flags = cv2.CV_HAAR_SCALE_IMAGE
+        )
+        if len(faces) > 0:
+            return True
+        return False

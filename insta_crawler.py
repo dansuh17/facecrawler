@@ -13,6 +13,8 @@ import queue
 import requests
 import http
 import base64
+from PIL import Image
+import io
 
 
 class PhotoImgLoaded(object):
@@ -173,12 +175,19 @@ class InstagramCrawlerEngine(Thread):
                     DownloadableImgLoaded())
 
             # hash the source to get image file name
-            file_hash = hashlib.sha1(img_src.encode()).hexdigest()
+            # file_hash = hashlib.sha1(img_src.encode()).hexdigest()
+            # file_hash = hashlib.md5(Image.open(img_src).tobytes()).hexdigest()
+
+            img = larger_img.screenshot_as_png
+
+            file_hash = hashlib.md5(img).hexdigest()
             file_name = '{}.png'.format(file_hash)
 
             # take screenshot of the image and save
             print('Saving : {}'.format(file_name))  # log progress
-            larger_img.screenshot(os.path.join(folder, file_name))
+
+            image = Image.open(io.BytesIO(img))
+            image.save(os.path.join(folder, file_name))
             success = True
         except TimeoutException:
             print('Failed to retrieve downloadable image')
@@ -261,9 +270,8 @@ class InstagramCrawlerEngine(Thread):
             for word in main_span_splits:
                 if (len(word) > 0
                         and word[0] == '#'
-                        and word[1:] not in self.hashtag_duplicate
-                        and not self.hashtag_queue.empty()):
-                    self.hashtag_queue.put(word[0:])
+                        and word[1:] not in self.hashtag_duplicate):
+                    self.hashtag_queue.put(word[1:])
                     self.hashtag_duplicate.add(word[1:])
 
     def close(self):
