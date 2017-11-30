@@ -12,6 +12,8 @@ import hashlib
 import queue
 import requests
 import base64
+from PIL import Image
+import io
 
 
 class PhotoImgLoaded(object):
@@ -174,12 +176,19 @@ class InstagramCrawlerEngine(Thread):
                     DownloadableImgLoaded())
 
             # hash the source to get image file name
-            file_hash = hashlib.sha1(img_src.encode()).hexdigest()
+            # file_hash = hashlib.sha1(img_src.encode()).hexdigest()
+            # file_hash = hashlib.md5(Image.open(img_src).tobytes()).hexdigest()
+
+            img = larger_img.screenshot_as_png
+
+            file_hash = hashlib.md5(img).hexdigest()
             file_name = '{}.png'.format(file_hash)
 
             # take screenshot of the image and save
             print('Saving : {}'.format(file_name))  # log progress
-            larger_img.screenshot(os.path.join(folder, file_name))
+
+            image = Image.open(io.BytesIO(img))
+            image.save(os.path.join(folder, file_name))
             data_filtered = self.data_filter.detect_object(os.path.join(folder, file_name))
             if not data_filtered:
                 os.remove(os.path.join(folder, file_name))
