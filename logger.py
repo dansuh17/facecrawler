@@ -2,7 +2,6 @@ import os
 import requests
 import psutil
 import time
-import os
 import subprocess
 import json
 
@@ -15,10 +14,10 @@ class Logger:
     curr_file_size = 0
     agg_dict = {}
 
-    def __init__(self, columns):
-        self.create_new_log_file(columns)
+    def __init__(self, columns, log_folder='./'):
+        self.create_new_log_file(columns, log_folder)
 
-    def create_new_log_file(self, columns):
+    def create_new_log_file(self, columns, log_folder):
         """
         Creates a new logfile specified by the provided columns.
 
@@ -27,9 +26,14 @@ class Logger:
         """
         if self.curr_file is not None:
             self.curr_file.close()
+
+        if not os.path.exists(log_folder):
+            # create the folder if not exists
+            os.makedirs(log_folder)
+
         filename = time.strftime('%Y-%m-%d %H:%M:%S.csv',
                                  time.localtime(time.time()))
-        self.curr_file = open(filename, 'w')
+        self.curr_file = open(os.path.join(log_folder, filename), 'w')
         self.curr_file_size = 0
         header = ''
         for i in columns:
@@ -69,6 +73,7 @@ class Logger:
                     # look at only the last 200 records
                     if length > 200:
                         self.agg_dict[i] = (self.agg_dict[i])[100:]
+
         requests.put('http://127.0.0.1:8080', params={'status': json.dumps(status)})
 
     def log(self, log_entry):

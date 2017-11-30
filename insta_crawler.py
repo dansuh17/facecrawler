@@ -11,6 +11,7 @@ import time
 import hashlib
 import queue
 import requests
+import http
 import base64
 
 
@@ -85,7 +86,7 @@ class InstagramCrawlerEngine(Thread):
     RIGHT_ARROW_CLASS_NAME = 'coreSpriteRightPaginationArrow'
 
     def __init__(self, webdriver, log_queue=None, hashtag_queue=None,
-                 hashtag_duplicate=None, data_filter=None, thread_stopper=None):
+                 hashtag_duplicate=None, thread_stopper=None):
         super().__init__()
         self.driver = webdriver
         # different urls for different target sites
@@ -94,7 +95,6 @@ class InstagramCrawlerEngine(Thread):
         self.log_queue = log_queue
         self.hashtag_queue = hashtag_queue
         self.hashtag_duplicate = hashtag_duplicate
-        self.data_filter = data_filter
         self.main_window = None
         self.thread_stopper = thread_stopper
 
@@ -166,7 +166,6 @@ class InstagramCrawlerEngine(Thread):
         self.driver.execute_script('window.open(\'{}\', \'_blank\');'.format(img_src))
         file_name = ''
         success = False
-        data_filtered = False
 
         try:
             # Wait for 2 seconds until image is loaded on the new tab
@@ -180,12 +179,6 @@ class InstagramCrawlerEngine(Thread):
             # take screenshot of the image and save
             print('Saving : {}'.format(file_name))  # log progress
             larger_img.screenshot(os.path.join(folder, file_name))
-            data_filtered = self.data_filter.detect_object(os.path.join(folder, file_name))
-            if not data_filtered:
-                os.remove(os.path.join(folder, file_name))
-                print("object deleted")
-            else:
-                print("object saved")
             success = True
         except TimeoutException:
             print('Failed to retrieve downloadable image')
@@ -193,7 +186,7 @@ class InstagramCrawlerEngine(Thread):
             self.driver.close()  # close the tab, not the driver itself
             # switch to main window
             self.driver.switch_to.window(self.main_window)
-        return data_filtered, success, file_name
+        return success, file_name
 
     def find_next_img(self):
         """
@@ -255,6 +248,7 @@ class InstagramCrawlerEngine(Thread):
         """
         img_or_video = self.driver.get_elem_at_point(250, 200)
         parent_dom = img_or_video.find_elements(By.XPATH, '..')[0]  # go to parent
+
         while not parent_dom.tag_name == 'article':
             parent_dom = parent_dom.find_elements(By.XPATH, '..')[0]
 
@@ -265,8 +259,11 @@ class InstagramCrawlerEngine(Thread):
         for main_span in main_text_elem:
             main_span_splits = main_span.text.split(" ")
             for word in main_span_splits:
-                if len(word) > 0 and word[0] == '#' and word[1:] not in self.hashtag_duplicate:
-                    self.hashtag_queue.put(word[1:])
+                if (len(word) > 0
+                        and word[0] == '#'
+                        and word[1:] not in self.hashtag_duplicate
+                        and not self.hashtag_queue.empty()):
+                    self.hashtag_queue.put(word[0:])
                     self.hashtag_duplicate.add(word[1:])
 
     def close(self):
@@ -281,7 +278,7 @@ class InstagramCrawlerEngine(Thread):
         """
         time.sleep(2)
 
-    def __call__(self, log_queue=None, hashtag_queue=None, hashtag_duplicate=None, data_filter=None):
+    def __call__(self, log_queue=None, hashtag_queue=None, hashtag_duplicate=None):
         """
         Make the class instance callable.
 
@@ -291,7 +288,6 @@ class InstagramCrawlerEngine(Thread):
         self.log_queue = log_queue
         self.hashtag_queue = hashtag_queue
         self.hashtag_duplicate = hashtag_duplicate
-        self.data_filter = data_filter
         self.start_crawl()
 
     def run(self):
@@ -317,24 +313,20 @@ class InstagramCrawlerEngine(Thread):
             try:
                 self.go_next_post()
                 image_src = self.find_next_img()
-                print('image found - {}'.format(image_src))
-                data_filtered, success, filename = self.download(img_src=image_src, folder=self.save_folder_name)
-                self.add_hashtag()
+                success, filename = self.download(
+                        img_src=image_src, folder=self.save_folder_name)
+                self.add_hashtag()  # add to hashtag queue
 
                 # log the download event
-                if self.log_queue is not None:
-                    if success and data_filtered:
-                        log_type = 'FILTERED'
-                    elif success and not data_filtered:
-                        log_type = 'SAVED'  # TODO: actually removed...?
-                    elif not success:
-                        log_type = 'FAILED'
+                log_entry = {
+                    'time': time.time(),
+                    'name': filename,
+                    'filepath': os.path.join(self.save_folder_name, filename),
+                    'success': success,
+                }
+                print(log_entry)
 
-                    log_entry = {
-                        'time': time.time(),
-                        'type': log_type,
-                        'name': filename
-                    }
+                if self.log_queue is not None:
                     self.log_queue.put(log_entry)
             except (self.ImageNotFoundException,
                 selenium.common.exceptions.StaleElementReferenceException):
@@ -343,7 +335,7 @@ class InstagramCrawlerEngine(Thread):
                 # StaelElementReferenceException occurs when DOM element is modified
                 # just before retrieving image source.
                 continue
-            except ConnectionRefusedError:
+            except (ConnectionRefusedError, http.client.RemoteDisconnected):
                 print('Driver closed by SIGINT or connection refused from target host.')
                 break
         print('RETURNING from start_crawl() and closing thread id : {}.'.format(threading.get_ident()))

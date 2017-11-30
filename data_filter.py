@@ -1,7 +1,7 @@
 import requests
 import base64
 
-class Data_Filter:
+class DataFilter:
     def __init__(self, data_type):
         if data_type == 'face':
             self.detect_object = self.detect_face
@@ -15,7 +15,10 @@ class Data_Filter:
             'app_id': 'da4c5a41',
             'app_key': '885a7c641219db6baedc3c714aee6257'
         }
-        payload = self._extract_base64_contents(image_file)
+        try:
+            payload = self._extract_base64_contents(image_file)
+        except FileNotFoundError:
+            return False
         response = requests.post(self._detect_base_url, json=payload, headers=auth_headers)
         json_response = response.json()
         return response.status_code == 200 and 'Errors' not in json_response
@@ -23,4 +26,3 @@ class Data_Filter:
     def _extract_base64_contents(self, image_path):
         with open(image_path, 'rb') as fp:
             return {'image': base64.b64encode(fp.read()).decode('ascii')}
-
