@@ -12,7 +12,10 @@ class StringGeneratorWebService:
     speed = 0.0
     cpu = '0'
     sum = '0'
-
+    f_speed = 0
+    f_sum = 0
+    s_speed = 0
+    s_sum = 0
     @cherrypy.tools.accept(media='text/plain')
     def GET(self):
         if len(pid_list) == 0:
@@ -22,13 +25,9 @@ class StringGeneratorWebService:
             cpu_sum = 0
             alive = 0
             dead = 0
-            for i in pid_list:
-                if i in pids:
-                    cpu_sum += float(pids[i])
-                    alive += 1
-                else:
-                    dead += 1
-            return format(self.speed, '.2f') + ',' + str(self.sum) + ',' + str(cpu_sum) + ',' + str(alive) + ',' + str(dead)
+            for i in pids:
+                cpu_sum += float(pids[i])
+            return format(self.f_speed, '.2f') + ',' + str(self.f_sum) + ',' + format(self.s_speed, '.2f') + ',' + str(self.s_sum) + ',' + format(cpu_sum, '.2f')
 
     def POST(self, length=8):
         some_string = ''.join(random.sample(string.hexdigits, int(length)))
@@ -38,8 +37,10 @@ class StringGeneratorWebService:
     def PUT(self, status):
         print(status)
         print(type(status))
-        self.speed = json.loads(status)['SAVED_speed']
-        self.sum = json.loads(status)['SAVED_sum']
+        self.s_speed = json.loads(status)['SAVED_speed']
+        self.s_sum = json.loads(status)['SAVED_sum']
+        self.f_speed = json.loads(status)['FILTERED_speed']
+        self.f_sum = json.loads(status)['FILTERED_sum']
 
     def DELETE(self):
         cherrypy.session.pop('mystring', None)

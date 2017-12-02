@@ -181,6 +181,8 @@ if __name__ == '__main__':
     logger = Logger(('time', 'name', 'filepath', 'type'), log_folder='./log')
     logger.add_agg_type('SAVED', 'speed')
     logger.add_agg_type('SAVED', 'sum')
+    logger.add_agg_type('FILTERED', 'speed')
+    logger.add_agg_type('FILTERED', 'sum')
 
     # create a crawler and start crawling
     crawler = Crawler(crawler_engine_cls=InstagramCrawlerEngine,
