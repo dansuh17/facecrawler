@@ -2,11 +2,11 @@ from crawler_engine_abc import CrawlerEngine
 from insta_crawler import InstagramCrawlerEngine, BetterDriver
 from threading import Thread, Event
 from logger import Logger
+from data_filter import DataFilter
 import os
 import signal
 import queue
 import time
-import data_filter
 import argparse
 
 
@@ -14,7 +14,7 @@ class Crawler:
     """
     Crawler system class. Comprises all modules required for crawling.
     """
-    def __init__(self, crawler_engine_cls, webdriver_cls, logger=None,
+    def __init__(self, crawler_engine_cls, webdriver_cls, num_workers, logger=None,
             data_filter=None, data_filter_folder='./faces'):
         if not issubclass(crawler_engine_cls, CrawlerEngine):
             raise self.CrawlerEngineMismatchError
@@ -43,7 +43,7 @@ class Crawler:
                     })
 
         # create worker threads
-        self.workers = self.create_workers()
+        self.workers = self.create_workers(num_workers)
 
         # end gracefully upon Ctrl+C
         handler = SignalHandler(self.stopper, self.workers, self.logger, self.logger_thread)
@@ -173,18 +173,33 @@ class SignalHandler:
 
 
 if __name__ == '__main__':
-    # prepare data filter
-    image_set = input("Image set(eg. face): ")  # Desired image set (eg. face, cat, dog)
-    data_filter = data_filter.DataFilter(image_set)
+    # parse arguments
+    argparser = argparse.ArgumentParser(description='Facecrawler')
+    argparser.add_argument('-s', '--site', type=str, default='instagram', help='target website to crawl')
+    argparser.add_argument('-f', '--filter', type=str, default='', help='type for data filter')
+    argparser.add_argument('-t', '--nthread', type=int, default=2, help='number of worker threads')
+    argparser.add_argument('-l', '--logpath', type=str, default='log', help='log folder path')
+    args = argparser.parse_args()
 
-    # prepare the logger
-    logger = Logger(('time', 'name', 'filepath', 'type'), log_folder='./log')
+    # prepare data filter
+    image_set = args.filter
+    data_filter = None
+    if image_set != '':
+        data_filter = DataFilter(image_set)
+
+    # prepare logger
+    logpath = args.logpath
+    logger = Logger(('time', 'name', 'filepath', 'type'), log_folder=logpath)
     logger.add_agg_type('SAVED', 'speed')
     logger.add_agg_type('SAVED', 'sum')
     logger.add_agg_type('FILTERED', 'speed')
     logger.add_agg_type('FILTERED', 'sum')
 
     # create a crawler and start crawling
-    crawler = Crawler(crawler_engine_cls=InstagramCrawlerEngine,
-            webdriver_cls=BetterDriver, logger=logger, data_filter=data_filter)
+    crawler = Crawler(
+            crawler_engine_cls=InstagramCrawlerEngine,
+            webdriver_cls=BetterDriver,
+            num_workers=args.nthread,
+            logger=logger,
+            data_filter=data_filter)
     crawler.start()
