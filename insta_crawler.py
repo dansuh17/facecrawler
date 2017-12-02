@@ -257,16 +257,16 @@ class InstagramCrawlerEngine(Thread):
         """
         img_or_video = self.driver.get_elem_at_point(250, 200)
         parent_dom = img_or_video.find_elements(By.XPATH, '..')[0]  # go to parent
-
         while not parent_dom.tag_name == 'article':
             parent_dom = parent_dom.find_elements(By.XPATH, '..')[0]
-
         text_area = parent_dom.find_elements_by_tag_name('ul')[0]
         children_list_elems = text_area.find_elements_by_tag_name('li')
         main_post_texts = children_list_elems[0]
         main_text_elem = main_post_texts.find_elements_by_tag_name('span')
         for main_span in main_text_elem:
             main_span_splits = main_span.text.split(" ")
+            if self.hashtag_queue.qsize() > 20:
+                break
             for word in main_span_splits:
                 if (len(word) > 0
                         and word[0] == '#'
@@ -323,7 +323,8 @@ class InstagramCrawlerEngine(Thread):
                 image_src = self.find_next_img()
                 success, filename = self.download(
                         img_src=image_src, folder=self.save_folder_name)
-                self.add_hashtag()  # add to hashtag queue
+                if self.hashtag_queue.qsize() < 20:
+                    self.add_hashtag()  # add to hashtag queue
 
                 # log the download event
                 log_entry = {
