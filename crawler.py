@@ -120,6 +120,7 @@ class Crawler:
                     log_info['type'] = data_status
                 print('Final log : {}'.format(log_info))
                 self.logger.log(log_info)
+                self.logger.send_status()
             else:
                 time.sleep(3)  # sleep for a while if log queue is empty
         print('Log queue dead')
@@ -163,12 +164,12 @@ class SignalHandler:
         print('SIGINT received')
         self.stopper.set()  # set stop thread event
 
+        print('Closing logger..')
+        self.logger.close()  # close logger
+
         for worker in self.workers:
             worker.join()
         self.logger_thread.join()
-
-        print('Closing logger..')
-        self.logger.close()  # close logger
 
 
 if __name__ == '__main__':
@@ -177,7 +178,7 @@ if __name__ == '__main__':
     data_filter = data_filter.DataFilter(image_set)
 
     # prepare the logger
-    logger = Logger(('time', 'type', 'name'), log_folder='./log')
+    logger = Logger(('time', 'name', 'filepath', 'type'), log_folder='./log')
     logger.add_agg_type('SAVED', 'speed')
     logger.add_agg_type('SAVED', 'sum')
 

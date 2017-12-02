@@ -59,21 +59,21 @@ class Logger:
         """
         status = {}
         for agg in self.agg_dict:
-            if agg == 'sum':  # status of collected sum
-                status[i] = self.agg_dict[i]
-            else:  # collecting speed status
-                if len(self.agg_dict[i]) == 0:
-                    status[i] = 0
+            if agg[-3:] == 'sum':  # status of collected sum
+                status[agg] = self.agg_dict[agg]
+            elif agg[-5:] == 'speed':  # collecting speed status
+                if len(self.agg_dict[agg]) == 0:
+                    status[agg] = 0
                 else:
-                    print(i, self.agg_dict[i])
-                    length = len(self.agg_dict[i])
-                    status[i] = length / (time.time() - self.agg_dict[i][0])
-                    print(length, time.time() - self.agg_dict[i][0])
+                    print(agg, self.agg_dict[agg])
+                    length = len(self.agg_dict[agg])
+                    status[agg] = length / (time.time() - self.agg_dict[agg][0])
+                    print(length, time.time() - self.agg_dict[agg][0])
 
                     # look at only the last 200 records
                     if length > 200:
-                        self.agg_dict[i] = (self.agg_dict[i])[100:]
-
+                        self.agg_dict[agg] = (self.agg_dict[agg])[100:]
+        print(status)
         requests.put('http://127.0.0.1:8080', params={'status': json.dumps(status)})
 
     def log(self, log_entry):
@@ -102,8 +102,9 @@ class Logger:
             self.agg_dict[log_entry['type'] + '_sum'] += 1
 
         log_ = time.strftime('%Y-%m-%d %H:%M:%S.%u', time.localtime(log_entry['time']))
-        log_ += ',' + log_entry['type']
         log_ += ',' + log_entry['name']
+        log_ += ',' + log_entry['filepath']
+        log_ += ',' + log_entry['type']
         self.curr_file.write(log_ + '\n')
         self.curr_file_size += 1
 
@@ -112,4 +113,3 @@ class Logger:
         Close the log file and stop logging.
         """
         self.curr_file.close()
-
