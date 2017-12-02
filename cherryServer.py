@@ -11,6 +11,7 @@ pid_list = list()
 class StringGeneratorWebService:
     speed = 0.0
     cpu = '0'
+    sum = '0'
 
     @cherrypy.tools.accept(media='text/plain')
     def GET(self):
@@ -27,7 +28,7 @@ class StringGeneratorWebService:
                     alive += 1
                 else:
                     dead += 1
-            return format(self.speed, '.2f') + ',' + str(cpu_sum) + ',' + str(alive) + ',' + str(dead)
+            return format(self.speed, '.2f') + ',' + str(self.sum) + ',' + str(cpu_sum) + ',' + str(alive) + ',' + str(dead)
 
     def POST(self, length=8):
         some_string = ''.join(random.sample(string.hexdigits, int(length)))
@@ -38,6 +39,7 @@ class StringGeneratorWebService:
         print(status)
         print(type(status))
         self.speed = json.loads(status)['SAVED_speed']
+        self.sum = json.loads(status)['SAVED_sum']
 
     def DELETE(self):
         cherrypy.session.pop('mystring', None)
@@ -59,9 +61,11 @@ def set_pid_list(input):
     for i in input:
         pid_list.append(i)
 
-
-if __name__ == '__main__':
+def run_server():
     input_pid_list = []
     input_pid_list.append(str(os.getpid()))
     set_pid_list(input_pid_list)
     start_server()
+
+if __name__ == '__main__':
+    run_server()

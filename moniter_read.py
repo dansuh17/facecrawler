@@ -1,5 +1,6 @@
 import requests
 import time
+import sys
 
 speed = '0'
 cpu = '0'
@@ -10,8 +11,8 @@ while(True):
         sys.stdout.flush()
         res = requests.get('http://127.0.0.1:8080')
         backoff = 2
-        speed, cpu, alive, dead = res.text.split(',')
-        print('\rSpeed: ' + speed + ' CPU: ' + cpu + ' ' + alive + ' ' + dead, end='')
+        speed, sum_, cpu, alive, dead = res.text.split(',')
+        print('\rSpeed: ' + speed + " Sum: " + sum_ + ' CPU: ' + cpu + ' ' + alive + ' ' + dead, end='')
         time.sleep(1)
     except:
         for i in range(backoff):
