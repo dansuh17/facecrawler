@@ -2,7 +2,7 @@ import subprocess
 
 
 def get_python_usage():
-    cmd = ("ps aux | grep python | grep -v grep | awk '{print $2, $3}'")
+    cmd = ("ps aux | grep -e geckodriver -e python -e firefox | grep -v grep | awk '{print $2, $3}'")
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
     (out, err) = proc.communicate()
     outwithoutreturn = (str(out, 'utf-8').rstrip('\n')).split('\n')

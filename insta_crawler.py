@@ -265,7 +265,7 @@ class InstagramCrawlerEngine(Thread):
         main_text_elem = main_post_texts.find_elements_by_tag_name('span')
         for main_span in main_text_elem:
             main_span_splits = main_span.text.split(" ")
-            if self.hashtag_queue.qsize() > 20:
+            if self.hashtag_queue.qsize() >= 20:
                 break
             for word in main_span_splits:
                 if (len(word) > 0
