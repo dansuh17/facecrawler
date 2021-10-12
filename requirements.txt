@@ -11,7 +11,7 @@ Pillow==4.3.0
 portend==2.2
 psutil==5.4.1
 pytz==2017.3
-requests==2.18.4
+requests==2.20.0
 selenium==3.5.0
 six==1.11.0
 tempora==1.9
